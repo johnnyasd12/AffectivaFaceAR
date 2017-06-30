@@ -7,15 +7,22 @@
     android:layout_height="match_parent"
     tools:context="com.yutouch.affectivafacear.MainActivity">
 
-    <RelativeLayout
-        android:id="@+id/relativeLayout1"
+    <com.yutouch.affectivafacear.DrawingView
+        android:id="@+id/drawingView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/childLayout1"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
         <Button
             android:id="@+id/sdk_start_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Button" />
-    </RelativeLayout>
+
+    </LinearLayout>
 </RelativeLayout>
