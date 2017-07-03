@@ -160,11 +160,11 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     public void onImageResults(List<Face> list, Frame frame, float v) {// TODO 畫圖囉
         if (list == null)
             return;
-        if (list.size() == 0) {// 若無affectiva faces, 則draw google faces
-            drawingView.invalidatePoints();
-            drawingView.updatePoints(new ArrayList<FaceObj>(), true);
+        if (list.size() == 0) {// 若無affectiva faces
+            drawingView.invalidatePoints(); // 清除DrawingThread.sharer的資料
+            drawingView.updatePoints(new ArrayList<FaceObj>(), true); // 給一個空的ArrayFace到sharer
 
-        } else {
+        } else { // 若有偵測到faces, 則更新drawingThread.sharer的臉資料
             List<FaceObj> faces = new ArrayList<>();
             for (int i = 0; i < list.size(); i++) {
                 Face face = list.get(i);
@@ -172,9 +172,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
                 FaceObj mFaceObj = new FaceObj(this, faceId, face);
                 faces.add(mFaceObj);
             }
-
             drawingView.updatePoints(faces, true);
-
         }
     }
 
@@ -191,7 +189,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         //cameraPreview.requestLayout(); // 這行能幹嘛???
 
         // 要更改drawingView的size
-        drawingView.setThickness((int) (previewWidth / 100f));
+        drawingView.setThickness((int) (previewWidth / 100f)); // 設定畫筆粗度?
         mainLayout.post(new Runnable() {
             @Override
             public void run() {// 將drawingView的size和cameraPreview同化
@@ -218,7 +216,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
                     newHeight = layoutHeight; // 高度縮至layout高度
                 }
 
-                drawingView.updateViewDimensions(newWidth, newHeight, previewWidth, previewHeight); // 設定畫圖view的寬高
+                drawingView.updateViewDimensions(newWidth, newHeight, previewWidth, previewHeight); // 設定畫圖view的寬高, 前兩參數為surfaceView的寬高, 後兩項為畫板的寬高, 所以在draw的時候座標會轉換
 
                 ViewGroup.LayoutParams params = mainLayout.getLayoutParams();
                 params.height = newHeight;
