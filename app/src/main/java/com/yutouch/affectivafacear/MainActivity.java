@@ -227,7 +227,6 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
 
             }
         });
-
-
     }
+
 }

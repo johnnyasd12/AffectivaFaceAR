@@ -183,7 +183,7 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
         }
 
 
-        private void drawFaceRect(Canvas canvas, FaceObj face) {
+        private void drawFaceRect(Canvas canvas, FaceObj face) { // 畫出臉部AR
             //canvas.drawRect(rect, boxPaint);
             PointF[] facePoints = face.getFacePoints();
             int drawEarX,drawEarY,drawNoseX,drawNoseY;
@@ -265,34 +265,6 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
             matrix.postRotate(rotation,centerX,centerY);
             canvas.drawBitmap(bitmap, matrix, paint);
         }
-
-        /*
-        private Rect getFaceRect(Canvas canvas, FaceObj face) {// get臉部矩形?
-            float left = 1080;
-            float top = 1920;
-            float right = 0;
-            float bottom = 0;
-
-            for (PointF point : face.points) {
-                float x;
-                if (true) {
-                    x = (imageWidth - point.x) * screenToImageRatio;
-                } else {
-                    x = (point.x) * screenToImageRatio;
-                }
-                float y = (point.y) * screenToImageRatio;
-
-                if (isDrawPointsEnabled) {
-                    canvas.drawCircle(x, y, drawThickness, trackingPointsPaint);
-                }
-
-                if (x < left) left = x;
-                if (y < top) top = y;
-                if (x > right) right = x;
-                if (y > bottom) bottom = y;
-            }
-            return new Rect((int)left,(int)top,(int)right,(int)bottom);
-        }*/
 
         //Inform thread face detection has stopped, so pending faces are no longer valid.
         public void invalidatePoints() {
