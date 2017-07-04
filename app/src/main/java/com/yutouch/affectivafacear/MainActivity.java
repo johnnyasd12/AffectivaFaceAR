@@ -186,7 +186,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
             previewHeight = height;
             previewWidth = width;
         }
-        //cameraPreview.requestLayout(); // 這行能幹嘛???
+        cameraPreview.requestLayout(); // 重 call measure(), onMeasure()....
 
         // 要更改drawingView的size
         drawingView.setThickness((int) (previewWidth / 100f)); // 設定畫筆粗度?

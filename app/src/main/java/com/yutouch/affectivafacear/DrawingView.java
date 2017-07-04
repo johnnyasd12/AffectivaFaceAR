@@ -163,7 +163,7 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
                                     FaceObj face = sharer.facesToDraw.get(i);
 
                                     //Rect rect = getFaceRect(canvas, face);
-                                    drawFaceRect(canvas, face);
+                                    drawFaceAttributes(canvas, face);
                                 }
 
                             }
@@ -183,7 +183,7 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
         }
 
 
-        private void drawFaceRect(Canvas canvas, FaceObj face) { // 畫出臉部AR
+        private void drawFaceAttributes(Canvas canvas, FaceObj face) { // 畫出臉部AR
             //canvas.drawRect(rect, boxPaint);
             PointF[] facePoints = face.getFacePoints();
             int drawEarX,drawEarY,drawNoseX,drawNoseY;
