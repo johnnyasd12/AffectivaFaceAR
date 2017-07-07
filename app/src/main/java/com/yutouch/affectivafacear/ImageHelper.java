@@ -246,6 +246,7 @@ public class ImageHelper {
     }
 
     public static Bitmap getBitmapFromRGBFrame(@NonNull final Frame frame) {
+        Log.d("ImageHelper","getBitmapFromRGBFrame called");
         byte[] pixels = ((Frame.ByteArrayFrame) frame).getByteArray();
         Bitmap bitmap = Bitmap.createBitmap(frame.getWidth(), frame.getHeight(), Bitmap.Config.ARGB_8888);
         bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(pixels));
@@ -253,6 +254,7 @@ public class ImageHelper {
     }
 
     public static Bitmap getBitmapFromYuvFrame(@NonNull final Frame frame) {
+        Log.d("ImageHelper","getBitmapFromeYuvFrame called");
         byte[] pixels = ((Frame.ByteArrayFrame) frame).getByteArray();
         YuvImage yuvImage = new YuvImage(pixels, ImageFormat.NV21, frame.getWidth(), frame.getHeight(), null);
         return convertYuvImageToBitmap(yuvImage);
@@ -289,6 +291,7 @@ public class ImageHelper {
             bitmap.recycle();
             outputStream.flush();
             outputStream.close();
+            Log.d("ImageHelper","saveBitmapToFileAsPng finished");
         } catch (IOException e) {
             throw new FileNotFoundException("Unable to save bitmap to file: " + file.getPath() + "\n" + e.getLocalizedMessage());
         }
@@ -302,6 +305,7 @@ public class ImageHelper {
         values.put(MediaStore.MediaColumns.DATA, imageFile.getAbsolutePath());
 
         context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+        Log.d("ImageHelper","addPngToGallery finished");
     }
 }
 

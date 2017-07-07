@@ -1,22 +1,38 @@
 package com.yutouch.affectivafacear;
 
+import android.Manifest;
 import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Bundle;
+import android.os.Environment;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.text.format.DateFormat;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.Toast;
 
 import com.affectiva.android.affdex.sdk.Frame;
 import com.affectiva.android.affdex.sdk.detector.CameraDetector;
 import com.affectiva.android.affdex.sdk.detector.Detector;
 import com.affectiva.android.affdex.sdk.detector.Face;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -27,12 +43,17 @@ import java.util.List;
  *
  * For use with SDK 2.02
  */
-public class MainActivity extends Activity implements Detector.ImageListener, CameraDetector.CameraEventListener {
+public class MainActivity extends Activity implements Detector.ImageListener, CameraDetector.CameraEventListener,
+    DrawingView.DrawingThreadEventListener{
 
     final String LOG_TAG = "CameraDetectorDemo";
+    // 拍照用參數
+    private boolean storagePermissionsAvailable = false;
+    private static final int EXTERNAL_STORAGE_PERMISSIONS_REQUEST = 73;// 介於0~255的任意數
+    private Frame mostRecentFrame;
 
     Button startSDKButton;
-
+    Button screenshotButton;
     RelativeLayout mainLayout;
     LinearLayout childLayout1;
     SurfaceView cameraPreview;
@@ -56,6 +77,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         childLayout1 = (LinearLayout)findViewById(R.id.childLayout1);
         drawingView = (DrawingView)findViewById(R.id.drawingView);
         startSDKButton = (Button) findViewById(R.id.sdk_start_button);
+        screenshotButton = (Button)findViewById(R.id.screenshot_button);
 
         startSDKButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -113,6 +135,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         drawingView.getHolder().setFormat(PixelFormat.TRANSPARENT); // 將這個view的背景設成透明
         setDetector(); // detector設定
 
+        drawingView.setEventListener(this);
         isSDKStarted = true; // 這行必須
         //startDetector();
     }
@@ -157,7 +180,9 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     }
 
     @Override
-    public void onImageResults(List<Face> list, Frame frame, float v) {// TODO 畫圖囉
+    public void onImageResults(List<Face> list, Frame frame, float v) {//只要有畫面就會call
+        //Log.d("dShot:","onImageResults called");
+        mostRecentFrame = frame;// 拍照截圖用
         if (list == null)
             return;
         if (list.size() == 0) {// 若無affectiva faces
@@ -228,5 +253,130 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
             }
         });
     }
+    public void takeScreenshot(View view) {
+        // Check the permissions to see if we are allowed to save the screenshot
+        if (!storagePermissionsAvailable) {
+            checkForStoragePermissions();
+            return;
+        }
+        drawingView.requestBitmap();
+        Log.d("dShot:takeScreenshot","finished");
+
+        /**
+         * A screenshot of the drawing view is generated and processing continues via the callback
+         * onBitmapGenerated() which calls processScreenshot().
+         */
+    }
+    private void processScreenshot(Bitmap drawingViewBitmap) { // drawingViewBitmap應該是畫AR的Bitmap
+        Log.d("dShot:processScreenshot","called");
+        if (mostRecentFrame == null) {
+            Toast.makeText(getApplicationContext(), "No frame detected, aborting screenshot", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!storagePermissionsAvailable) {
+            checkForStoragePermissions();
+            return;
+        }
+
+        Bitmap faceBitmap = ImageHelper.getBitmapFromFrame(mostRecentFrame); // 原始照片
+
+        if (faceBitmap == null) {
+            Log.e(LOG_TAG, "Unable to generate bitmap for frame, aborting screenshot");
+            return;
+        }else{Log.d("Main/processScreenshot","mostRecentFrame get");}
+
+        Bitmap finalScreenshot = Bitmap.createBitmap(faceBitmap.getWidth(), faceBitmap.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(finalScreenshot); // 畫在canvas上的東西會進finalScreenshot這個Bitmap
+        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+
+        canvas.drawBitmap(faceBitmap, 0, 0, paint); // 畫拍好的照片上去 (0,0)是座標
+
+        float scaleFactor = ((float) faceBitmap.getWidth()) / ((float) drawingViewBitmap.getWidth());
+        int scaledHeight = Math.round(drawingViewBitmap.getHeight() * scaleFactor);
+        canvas.drawBitmap(drawingViewBitmap, null, new Rect(0, 0, faceBitmap.getWidth(), scaledHeight), paint); // 畫AR上去
+
+        drawingViewBitmap.recycle();
+
+        Date now = new Date();
+        String timestamp = DateFormat.format("yyyy-MM-dd_hh-mm-ss", now).toString();
+        File pictureFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AffdexMe");
+        if (!pictureFolder.exists()) {
+            if (!pictureFolder.mkdir()) {
+                Log.e(LOG_TAG, "Unable to create directory: " + pictureFolder.getAbsolutePath());
+                return;
+            }
+        }
+
+        String screenshotFileName = timestamp + ".png";
+        File screenshotFile = new File(pictureFolder, screenshotFileName);
+
+        try {
+            ImageHelper.saveBitmapToFileAsPng(finalScreenshot, screenshotFile);
+        } catch (IOException e) {
+            String msg = "Unable to save screenshot";
+            Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+            Log.e(LOG_TAG, msg, e);
+            return;
+        }
+        ImageHelper.addPngToGallery(getApplicationContext(), screenshotFile);
+
+        faceBitmap.recycle();
+        finalScreenshot.recycle();
+
+        String fileSavedMessage = "Screenshot saved to: " + screenshotFile.getPath();
+        Toast.makeText(getApplicationContext(), fileSavedMessage, Toast.LENGTH_SHORT).show();
+        Log.d(LOG_TAG, fileSavedMessage);
+        Log.d("dShot:processScreenshot","finished");
+    }
+
+    private void checkForStoragePermissions() {
+        storagePermissionsAvailable =
+                ContextCompat.checkSelfPermission(
+                        getApplicationContext(),
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+
+        if (!storagePermissionsAvailable) {
+            Log.d("Main/checkForStoragePer","notAvailable, resolving...");
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+
+                // Show an explanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+                // showPermissionExplanationDialog(EXTERNAL_STORAGE_PERMISSIONS_REQUEST); // im not going to show explanation, sorry
+                Log.d("Main/checkForStoragePer","show explanation WRITE_EXTERNAL");
+            } else {
+                // No explanation needed, we can request the permission.
+                Log.d("Main/checkForStoragePer","cannot write, requesting permissions");
+                requestStoragePermissions();
+            }
+        } else {
+            Log.d("Main/checkForStoragePer","Available, takeScreenshot()...");
+            takeScreenshot(screenshotButton);
+        }
+    }
+    private void requestStoragePermissions() {
+        if (!storagePermissionsAvailable) {
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    EXTERNAL_STORAGE_PERMISSIONS_REQUEST);
+
+            // EXTERNAL_STORAGE_PERMISSIONS_REQUEST is an app-defined int constant that must be between 0 and 255.
+            // The callback method gets the result of the request.
+        }
+    }
+    @Override
+    public void onBitmapGenerated(@NonNull final Bitmap bitmap) { // 處理request後的bitmap
+        Log.d("Main/onBitmapGenerated","called");
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                processScreenshot(bitmap);
+            }
+        });
+    }
+
 
 }
