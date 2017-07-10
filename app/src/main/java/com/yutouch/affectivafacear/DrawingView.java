@@ -140,6 +140,11 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
     interface DrawingThreadEventListener { // main要用的
         void onBitmapGenerated(Bitmap bitmap);
     }
+    public int getImageWidth(){return imageWidth;}
+    public boolean getIsMirror(){return drawingThread.sharer.isPointsMirrored;}
+    public float getScreenToImageRatio(){return screenToImageRatio;}
+    public int getSurfaceWidth(){return drawingThread.holder.getSurfaceFrame().width();}
+    public int getSurfaceHeight(){return drawingThread.holder.getSurfaceFrame().height();}
 
     class DrawingThread extends Thread {
         private final FacesSharer sharer;
@@ -315,6 +320,10 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
             //畫 經過旋轉的 耳朵&鼻子
             drawRotateBitmapByCenter(canvas,trackingPointsPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
             drawRotateBitmapByCenter(canvas,trackingPointsPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
+            earBitmap.recycle();
+            earBitmap2.recycle();
+            noseBitmap.recycle();
+            noseBitmap2.recycle();
         }
 
         private void drawFaceAttributesForScreenshot(Canvas canvas, FaceObj face) { // 畫出臉部AR, 給截圖用

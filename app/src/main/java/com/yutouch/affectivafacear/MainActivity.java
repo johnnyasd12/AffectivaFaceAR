@@ -4,9 +4,13 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Environment;
@@ -35,6 +39,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static com.yutouch.affectivafacear.ImageHelper.getBitmapFromFrame;
+import static java.lang.Math.sqrt;
+
 /**
  * This is a very bare sample app to demonstrate the usage of the CameraDetector object from Affectiva.
  * It displays statistics on frames per second, percentage of time a face was detected, and the user's smile score.
@@ -51,6 +58,9 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     private boolean storagePermissionsAvailable = false;
     private static final int EXTERNAL_STORAGE_PERMISSIONS_REQUEST = 73;// 介於0~255的任意數
     private Frame mostRecentFrame;
+    // 改過snapshot架構後另外使用的參數
+    boolean isRequestScreenshot = false;
+    //ArrayList<FaceObj> listFaces;
 
     Button startSDKButton;
     Button screenshotButton;
@@ -138,6 +148,8 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         drawingView.setEventListener(this);
         isSDKStarted = true; // 這行必須
         //startDetector();
+        // 截圖用
+        //listFaces = new ArrayList<FaceObj>();
     }
     private void setDetector(){
         detector = new CameraDetector(this, CameraDetector.CameraType.CAMERA_FRONT, cameraPreview);
@@ -182,7 +194,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     @Override
     public void onImageResults(List<Face> list, Frame frame, float v) {//只要有畫面就會call
         //Log.d("dShot:","onImageResults called");
-        mostRecentFrame = frame;// 拍照截圖用
+        mostRecentFrame = frame;// 照片(拍照截圖用
         if (list == null)
             return;
         if (list.size() == 0) {// 若無affectiva faces
@@ -196,8 +208,22 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
                 int faceId = face.getId();
                 FaceObj mFaceObj = new FaceObj(this, faceId, face);
                 faces.add(mFaceObj);
+                //listFaces.add(mFaceObj);
             }
             drawingView.updatePoints(faces, true);
+            if(isRequestScreenshot){ // 如果按下了拍照紐
+                isRequestScreenshot=false;
+                Bitmap drawViewBitmap;
+                Canvas screenshotCanvas;
+                drawViewBitmap = Bitmap.createBitmap(drawingView.getSurfaceWidth(), drawingView.getSurfaceHeight(), Bitmap.Config.ARGB_8888);
+                screenshotCanvas = new Canvas(drawViewBitmap);
+                for(FaceObj eachFace:faces) {
+                    drawFaceAR(screenshotCanvas, eachFace);
+                }
+                processScreenshot(drawViewBitmap);
+                drawViewBitmap.recycle();
+                Log.d("dShot","processScreenshot finished");
+            }
         }
     }
 
@@ -255,12 +281,12 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     }
     public void takeScreenshot(View view) {
         // Check the permissions to see if we are allowed to save the screenshot
+        Log.d("dShot:takeScreenshot","called");
         if (!storagePermissionsAvailable) {
             checkForStoragePermissions();
             return;
         }
-        drawingView.requestBitmap();
-        Log.d("dShot:takeScreenshot","finished");
+        isRequestScreenshot = true;//drawingView.requestBitmap();
 
         /**
          * A screenshot of the drawing view is generated and processing continues via the callback
@@ -279,7 +305,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
             return;
         }
 
-        Bitmap faceBitmap = ImageHelper.getBitmapFromFrame(mostRecentFrame); // 原始照片
+        Bitmap faceBitmap = getBitmapFromFrame(mostRecentFrame); // 原始照片
 
         if (faceBitmap == null) {
             Log.e(LOG_TAG, "Unable to generate bitmap for frame, aborting screenshot");
@@ -330,6 +356,160 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         Log.d("dShot:processScreenshot","finished");
     }
 
+    private void processScreenshot() { // drawingViewBitmap應該是畫AR的Bitmap
+        Log.d("dShot:processScreenshot","called");
+        if (mostRecentFrame == null) {
+            Toast.makeText(getApplicationContext(), "No frame detected, aborting screenshot", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!storagePermissionsAvailable) {
+            checkForStoragePermissions();
+            return;
+        }
+
+        Bitmap faceBitmap = getBitmapFromFrame(mostRecentFrame); // 原始照片
+
+        if (faceBitmap == null) {
+            Log.e(LOG_TAG, "Unable to generate bitmap for frame, aborting screenshot");
+            return;
+        }else{Log.d("Main/processScreenshot","mostRecentFrame get");}
+
+        Bitmap finalScreenshot = Bitmap.createBitmap(faceBitmap.getWidth(), faceBitmap.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(finalScreenshot); // 畫在canvas上的東西會進finalScreenshot這個Bitmap
+        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+
+        canvas.drawBitmap(faceBitmap, 0, 0, paint); // 畫拍好的照片上去 (0,0)是座標
+
+        //float scaleFactor = ((float) faceBitmap.getWidth()) / ((float) drawingViewBitmap.getWidth());
+        //int scaledHeight = Math.round(drawingViewBitmap.getHeight() * scaleFactor);
+        //canvas.drawBitmap(drawingViewBitmap, null, new Rect(0, 0, faceBitmap.getWidth(), scaledHeight), paint); // 畫AR上去
+
+        //drawingViewBitmap.recycle();
+
+        Date now = new Date();
+        String timestamp = DateFormat.format("yyyy-MM-dd_hh-mm-ss", now).toString();
+        File pictureFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AffdexMe");
+        if (!pictureFolder.exists()) {
+            if (!pictureFolder.mkdir()) {
+                Log.e(LOG_TAG, "Unable to create directory: " + pictureFolder.getAbsolutePath());
+                return;
+            }
+        }
+
+        String screenshotFileName = timestamp + ".png";
+        File screenshotFile = new File(pictureFolder, screenshotFileName);
+
+        try {
+            ImageHelper.saveBitmapToFileAsPng(finalScreenshot, screenshotFile);
+        } catch (IOException e) {
+            String msg = "Unable to save screenshot";
+            Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+            Log.e(LOG_TAG, msg, e);
+            return;
+        }
+        ImageHelper.addPngToGallery(getApplicationContext(), screenshotFile);
+
+        faceBitmap.recycle();
+        finalScreenshot.recycle();
+
+        String fileSavedMessage = "Screenshot saved to: " + screenshotFile.getPath();
+        Toast.makeText(getApplicationContext(), fileSavedMessage, Toast.LENGTH_SHORT).show();
+        Log.d(LOG_TAG, fileSavedMessage);
+        Log.d("dShot:processScreenshot","finished");
+    }
+    private void drawFaceAR(Canvas canvas, FaceObj face) { // 畫出臉部AR
+        //canvas.drawRect(rect, boxPaint);
+        boolean isMirror = drawingView.getIsMirror();
+        isMirror = false;
+        Log.d("drawFaceAR","isMirror = "+isMirror);
+        PointF[] facePoints = face.getFacePoints();
+        int drawEarX,drawEarY,drawNoseX,drawNoseY;
+        //  faceWidth和faceHeight應該用距離來算 不是用x或y來算 因為要考慮傾斜
+        int faceWidth = (int)(sqrt((facePoints[10].x - facePoints[5].x)*(facePoints[10].x - facePoints[5].x)+
+                (facePoints[10].y - facePoints[5].y)*(facePoints[10].y - facePoints[5].y))); // 左眉外側 - 右眉外側
+        int faceHeight = (int)(sqrt((facePoints[2].y - facePoints[11].y)*(facePoints[2].y - facePoints[11].y)+
+                (facePoints[2].x - facePoints[11].x)*(facePoints[2].x - facePoints[11].x)))*3/2; // (下巴 - 鼻根) *3/2
+
+        PointF pointNoseRoot = facePoints[11];// 耳朵位置參考 鼻根
+        int rootX = (int)pointNoseRoot.x;
+        int rootY = (int)pointNoseRoot.y;
+        int earWidth = faceWidth*6/5;
+        int earHeight = faceHeight;
+        drawEarX = rootX + earWidth/2;
+        drawEarY = rootY - earHeight*4/3;
+        if(isMirror){drawEarX = drawingView.getImageWidth() - drawEarX;}
+        drawEarX *= drawingView.getScreenToImageRatio();
+        drawEarY *= drawingView.getScreenToImageRatio();
+//            Log.d("Draw/rootX",rootX+"");
+//            Log.d("Draw/rootY",rootY+"");
+//            Log.d("Draw/faceWidth",faceWidth+"");
+//            Log.d("Draw/faceHeight",faceHeight+"");
+        earWidth *= drawingView.getScreenToImageRatio();
+        earHeight *= drawingView.getScreenToImageRatio();
+        Bitmap earBitmap = BitmapFactory.decodeResource(this.getResources(),R.drawable.rbear);
+        Bitmap earBitmap2 = Bitmap.createScaledBitmap(earBitmap, earWidth, earHeight, false);
+
+        // 12:nose tip 鼻尖, 14: nose bottom boundary 鼻底
+        PointF pointNoseTip = facePoints[12];
+        int tipX = (int)pointNoseTip.x;
+        int tipY = (int)pointNoseTip.y;
+        int noseWidth = faceWidth;
+        int noseHeight = faceHeight/2;
+        drawNoseX = tipX + noseWidth/2 ;
+        //drawNoseY = tipY - noseHeight/2;
+        drawNoseY = (int)(face.getFacePoints()[12].y+face.getFacePoints()[14].y)/2 - noseHeight/2; // 鼻尖和鼻底之間
+        if(isMirror){drawNoseX = drawingView.getImageWidth() - drawNoseX;}
+        drawNoseX *= drawingView.getScreenToImageRatio();
+        drawNoseY *= drawingView.getScreenToImageRatio();
+        noseWidth *= drawingView.getScreenToImageRatio();
+        noseHeight *= drawingView.getScreenToImageRatio();
+        Bitmap noseBitmap = BitmapFactory.decodeResource(this.getResources(),R.drawable.rbnose);
+        Bitmap noseBitmap2 = Bitmap.createScaledBitmap(noseBitmap, noseWidth, noseHeight, false);
+        //image(鏡像) x向左遞增, y向下遞增, 原點在右上
+        // 計算傾斜角度
+        float chinX = facePoints[2].x;
+        float chinY = facePoints[2].y;
+        float noseX = facePoints[14].x; // 鼻子底部
+        float noseY = facePoints[14].y;
+        if(isMirror){
+            chinX = drawingView.getImageWidth()-chinX;
+            noseX = drawingView.getImageWidth()-noseX;
+        }
+        chinX*=drawingView.getScreenToImageRatio();
+        chinY*=drawingView.getScreenToImageRatio();
+        noseX*=drawingView.getScreenToImageRatio();
+        noseY*=drawingView.getScreenToImageRatio();
+        float lenChinToNose = (float)sqrt((chinX-noseX)*(chinX-noseX)+(chinY-noseY)*(chinY-noseY)); // 下巴和鼻子的距離
+        float sinAngle = (noseX-chinX)/lenChinToNose; // 大概是這樣算吧
+//            Log.d("Draw/chinX-drawNoseX",(chinX-noseX)+"");
+//            Log.d("Draw/x_chin",chinX+"");
+//            Log.d("Draw/x_nose",noseX+"");
+//            Log.d("Draw/sin",sinAngle+"");
+        float angle = (float)Math.toDegrees(Math.asin(sinAngle)); //Log.d("Draw/angle",angle+"");
+
+
+        //c.drawBitmap(earBitmap2, drawEarX, drawEarY, trackingPointsPaint);// 耳朵放在額頭 並置中
+        //c.drawBitmap(noseBitmap2, drawNoseX, drawNoseY, trackingPointsPaint);// 鼻子放在鼻頭 並置中
+        //畫 經過旋轉的 耳朵&鼻子
+        Paint trackingPointsPaint;
+        trackingPointsPaint = new Paint();
+        trackingPointsPaint.setColor(Color.WHITE);
+        drawRotateBitmapByCenter(canvas,trackingPointsPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
+        drawRotateBitmapByCenter(canvas,trackingPointsPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
+        earBitmap.recycle();
+        earBitmap2.recycle();
+        noseBitmap.recycle();
+        noseBitmap2.recycle();
+    }
+    private void drawRotateBitmapByCenter(Canvas canvas, Paint paint, Bitmap bitmap,
+                                          float rotation, float posX, float posY, float centerX, float centerY) {// 旋轉bitmap本身
+        //if(mirrorPoints){posX=config.imageWidth-posX;}
+        Matrix matrix = new Matrix();
+        matrix.postTranslate(posX, posY);
+        matrix.postRotate(rotation,centerX,centerY);
+        canvas.drawBitmap(bitmap, matrix, paint);
+    }
     private void checkForStoragePermissions() {
         storagePermissionsAvailable =
                 ContextCompat.checkSelfPermission(
