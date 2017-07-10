@@ -195,7 +195,7 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
             // this is where the animation will occur
             while(running) {
                 Canvas canvas = null;
-                Canvas screenshotCanvas = null;// 拍照用
+                Canvas screenshotCanvas = null;// 拍照用 會把AR畫上去, 不含照片 吧
                 Bitmap screenshotBitmap = null;
                 try {
                     canvas = holder.lockCanvas();
