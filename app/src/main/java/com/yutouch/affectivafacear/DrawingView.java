@@ -211,7 +211,7 @@ public class DrawingView extends SurfaceView implements SurfaceHolder.Callback {
                     if (canvas != null) {
                         synchronized (holder) {
                             // draw
-                            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+                            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR); // PorterDuff.Mode.SRC_OVER可能改善黑畫面
                             synchronized (sharer) {
                                 for (int i = 0; i < sharer.facesToDraw.size(); i++) {
                                     FaceObj face = sharer.facesToDraw.get(i);

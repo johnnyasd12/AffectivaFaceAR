@@ -61,7 +61,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     private Frame mostRecentFrame;
     // 改過snapshot架構後另外使用的參數
     boolean isRequestScreenshot = false;
-    //ArrayList<FaceObj> listFaces;
+    ArrayList<FaceObj> listFaces;
 
     Button startSDKButton;
     Button screenshotButton;
@@ -150,7 +150,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         isSDKStarted = true; // 這行必須
         //startDetector();
         // 截圖用
-        //listFaces = new ArrayList<FaceObj>();
+        listFaces = new ArrayList<FaceObj>();
     }
     private void setDetector(){
         detector = new CameraDetector(this, CameraDetector.CameraType.CAMERA_FRONT, cameraPreview);
@@ -200,36 +200,24 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         if (list == null)
             return;
         if (list.size() == 0) {// 若無affectiva faces
+            listFaces.clear();// 清空listFaces資料
             drawingView.invalidatePoints(); // 清除DrawingThread.sharer的資料
-            drawingView.updatePoints(new ArrayList<FaceObj>(), true); // 給一個空的ArrayFace到sharer
+            drawingView.updatePoints(new ArrayList<FaceObj>(), true); // 給一個空的ArrayFace到sharer, 鏡像設為true
 
         } else { // 若有偵測到faces, 則更新drawingThread.sharer的臉資料
+            listFaces.clear();//重置listFaces資料內容
             for (int i = 0; i < list.size(); i++) {
                 Face face = list.get(i);
                 int faceId = face.getId();
                 FaceObj mFaceObj = new FaceObj(this, faceId, face);
                 faces.add(mFaceObj);
-                //listFaces.add(mFaceObj);
+                listFaces.add(mFaceObj);
             }
             drawingView.updatePoints(faces, true);
         }
         if(isRequestScreenshot){ // 如果按下了拍照紐
             isRequestScreenshot=false;
-            Bitmap drawViewBitmap;
-            Canvas screenshotCanvas;
-            drawViewBitmap = Bitmap.createBitmap(drawingView.getSurfaceWidth(), drawingView.getSurfaceHeight(), Bitmap.Config.ARGB_8888);
-            screenshotCanvas = new Canvas(drawViewBitmap);
-            screenshotCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-            // 畫 臉部AR
-            if(faces.size()>0) { // 若有偵測到臉
-                for (FaceObj eachFace : faces) {
-                    drawFaceAR(screenshotCanvas, eachFace);
-                }
-                processScreenshot(drawViewBitmap);
-            }else { // 沒偵測到臉就只拍照片
-                processScreenshot();
-            }
-            drawViewBitmap.recycle();
+
         }
     }
 
@@ -285,19 +273,84 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
             }
         });
     }
-    public void takeScreenshot(View view) {
+    public void takeScreenshot(View view) {// 按下拍照紐
         // Check the permissions to see if we are allowed to save the screenshot
         Log.d("dShot:takeScreenshot","called");
         if (!storagePermissionsAvailable) {
             checkForStoragePermissions();
             return;
         }
+
         isRequestScreenshot = true;//drawingView.requestBitmap();
+        Bitmap combineBitmap;
+        Canvas combineCanvas;
+        combineBitmap = Bitmap.createScaledBitmap(ImageHelper.getBitmapFromFrame(mostRecentFrame)
+            ,drawingView.getSurfaceWidth(),drawingView.getSurfaceHeight(),true);// 先貼上照片, true => 平滑效果
+        combineCanvas = new Canvas(combineBitmap);
+        combineCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.SRC_OVER); // PorterDuff.Mode.SRC_OVER可能改善黑畫面
+
+
+//        Bitmap drawViewBitmap;
+//        Canvas drawViewCanvas;
+//        drawViewBitmap = Bitmap.createBitmap(drawingView.getSurfaceWidth(), drawingView.getSurfaceHeight(), Bitmap.Config.ARGB_8888);
+//        drawViewCanvas = new Canvas(drawViewBitmap);
+//        drawViewCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+        // 畫 臉部AR
+        if(listFaces.size()>0) { // 若有偵測到臉
+            for (FaceObj eachFace : listFaces) {
+                //drawFaceAR(drawViewCanvas, eachFace);
+                Log.d("dshot","drawFaceAR "+listFaces.size()+" faces");
+                drawFaceAR(combineCanvas,eachFace);
+            }
+            //processScreenshot(drawViewBitmap);
+            processFinalBitmap(combineBitmap);
+        }else { // 沒偵測到臉就只拍照片
+            processScreenshot();
+        }
+        //drawViewBitmap.recycle();
+        combineBitmap.recycle();
 
         /**
          * A screenshot of the drawing view is generated and processing continues via the callback
          * onBitmapGenerated() which calls processScreenshot().
          */
+    }
+    private void processFinalBitmap(Bitmap bitmapToProcess){// 有faces就畫, 沒faces就call processScreenshot()
+        if (!storagePermissionsAvailable) {
+            checkForStoragePermissions();
+            return;
+        }
+        Date now = new Date();
+        String timestamp = DateFormat.format("yyyy-MM-dd_HH-mm-ss", now).toString();
+        File pictureFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AffdexMe");
+        if (!pictureFolder.exists()) {
+            if (!pictureFolder.mkdir()) {
+                Log.e(LOG_TAG, "Unable to create directory: " + pictureFolder.getAbsolutePath());
+                return;
+            }
+        }
+
+        String screenshotFileName = timestamp + ".png";
+        File screenshotFile = new File(pictureFolder, screenshotFileName);
+
+        try {
+            ImageHelper.saveBitmapToFileAsPng(bitmapToProcess, screenshotFile);
+        } catch (IOException e) {
+            String msg = "Unable to save screenshot";
+            Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+            Log.e(LOG_TAG, msg, e);
+            return;
+        }
+        ImageHelper.addPngToGallery(getApplicationContext(), screenshotFile);
+
+        bitmapToProcess.recycle();
+
+        String fileSavedMessage = "Screenshot saved to: " + screenshotFile.getPath();
+        Toast.makeText(getApplicationContext(), fileSavedMessage, Toast.LENGTH_SHORT).show();
+        Log.d(LOG_TAG, fileSavedMessage);
+        Log.d("dShot:","processFinalBitmap finished");
+
+
     }
     private void processScreenshot(Bitmap drawingViewBitmap) { // drawingViewBitmap應該是畫AR的Bitmap
         Log.d("dShot:processScreenshot","called");
@@ -325,8 +378,8 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         canvas.drawBitmap(faceBitmap, 0, 0, paint); // 畫拍好的照片上去 (0,0)是座標
 
         // 應該是在調整作畫比例
-        float scaleFactor = ((float) faceBitmap.getWidth()) / ((float) drawingViewBitmap.getWidth());
-        int scaledHeight = Math.round(drawingViewBitmap.getHeight() * scaleFactor);
+        float scaleFactor = ((float) faceBitmap.getWidth()) / ((float) drawingViewBitmap.getWidth()); // 以照片大小為準
+        int scaledHeight = Math.round(drawingViewBitmap.getHeight() * scaleFactor); // 把bitmap高度調整成照片的比例
         canvas.drawBitmap(drawingViewBitmap, null, new Rect(0, 0, faceBitmap.getWidth(), scaledHeight), paint); // 畫AR上去
 
         drawingViewBitmap.recycle();
@@ -428,7 +481,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     private void drawFaceAR(Canvas canvas, FaceObj face) { // 畫出臉部AR
         //canvas.drawRect(rect, boxPaint);
         boolean isMirror = drawingView.getIsMirror();
-        //isMirror = false;
+        isMirror = false;
         Log.d("drawFaceAR","isMirror = "+isMirror);
         PointF[] facePoints = face.getFacePoints();
         int drawEarX,drawEarY,drawNoseX,drawNoseY;
