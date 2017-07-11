@@ -12,10 +12,9 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
-import android.graphics.Rect;
+import android.graphics.PorterDuffXfermode;
 import android.os.Bundle;
 import android.os.Environment;
-import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateFormat;
@@ -51,8 +50,7 @@ import static java.lang.Math.sqrt;
  *
  * For use with SDK 2.02
  */
-public class MainActivity extends Activity implements Detector.ImageListener, CameraDetector.CameraEventListener,
-    DrawingView.DrawingThreadEventListener{
+public class MainActivity extends Activity implements Detector.ImageListener, CameraDetector.CameraEventListener{
 
     final String LOG_TAG = "CameraDetectorDemo";
     // 拍照用參數
@@ -146,7 +144,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         drawingView.getHolder().setFormat(PixelFormat.TRANSPARENT); // 將這個view的背景設成透明
         setDetector(); // detector設定
 
-        drawingView.setEventListener(this);
+        //drawingView.setEventListener(this);
         isSDKStarted = true; // 這行必須
         //startDetector();
         // 截圖用
@@ -284,10 +282,12 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         isRequestScreenshot = true;//drawingView.requestBitmap();
         Bitmap combineBitmap;
         Canvas combineCanvas;
-        combineBitmap = Bitmap.createScaledBitmap(ImageHelper.getBitmapFromFrame(mostRecentFrame)
+        ArrayList<FaceObj> faces = new ArrayList<>(listFaces);
+        Bitmap picBitmap = ImageHelper.getBitmapFromFrame(mostRecentFrame);
+        combineBitmap = Bitmap.createScaledBitmap(picBitmap
             ,drawingView.getSurfaceWidth(),drawingView.getSurfaceHeight(),true);// 先貼上照片, true => 平滑效果
         combineCanvas = new Canvas(combineBitmap);
-        combineCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.SRC_OVER); // PorterDuff.Mode.SRC_OVER可能改善黑畫面
+        //combineCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.SRC_OVER); // PorterDuff.Mode.SRC_OVER可能改善黑畫面???
 
 
 //        Bitmap drawViewBitmap;
@@ -296,10 +296,10 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
 //        drawViewCanvas = new Canvas(drawViewBitmap);
 //        drawViewCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
         // 畫 臉部AR
-        if(listFaces.size()>0) { // 若有偵測到臉
-            for (FaceObj eachFace : listFaces) {
+        if(faces.size()>0) { // 若有偵測到臉
+            for (FaceObj eachFace : faces) {
                 //drawFaceAR(drawViewCanvas, eachFace);
-                Log.d("dshot","drawFaceAR "+listFaces.size()+" faces");
+                Log.d("dshot","drawFaceAR "+faces.size()+" faces");
                 drawFaceAR(combineCanvas,eachFace);
             }
             //processScreenshot(drawViewBitmap);
@@ -352,7 +352,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
 
 
     }
-    private void processScreenshot(Bitmap drawingViewBitmap) { // drawingViewBitmap應該是畫AR的Bitmap
+    /*private void processScreenshot(Bitmap drawingViewBitmap) { // drawingViewBitmap應該是畫AR的Bitmap
         Log.d("dShot:processScreenshot","called");
         if (mostRecentFrame == null) {
             Toast.makeText(getApplicationContext(), "No frame detected, aborting screenshot", Toast.LENGTH_SHORT).show();
@@ -414,10 +414,10 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         Toast.makeText(getApplicationContext(), fileSavedMessage, Toast.LENGTH_SHORT).show();
         Log.d(LOG_TAG, fileSavedMessage);
         Log.d("dShot:processScreenshot","finished");
-    }
+    }*/
 
     private void processScreenshot() { // drawingViewBitmap應該是畫AR的Bitmap
-        Log.d("dShot:processScreenshot","called");
+        Log.d("dShot","processScreenshot() called");
         if (mostRecentFrame == null) {
             Toast.makeText(getApplicationContext(), "No frame detected, aborting screenshot", Toast.LENGTH_SHORT).show();
             return;
@@ -448,7 +448,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         //drawingViewBitmap.recycle();
 
         Date now = new Date();
-        String timestamp = DateFormat.format("yyyy-MM-dd_hh-mm-ss", now).toString();
+        String timestamp = DateFormat.format("yyyy-MM-dd_HH-mm-ss", now).toString();
         File pictureFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AffdexMe");
         if (!pictureFolder.exists()) {
             if (!pictureFolder.mkdir()) {
@@ -476,7 +476,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         String fileSavedMessage = "Screenshot saved to: " + screenshotFile.getPath();
         Toast.makeText(getApplicationContext(), fileSavedMessage, Toast.LENGTH_SHORT).show();
         Log.d(LOG_TAG, fileSavedMessage);
-        Log.d("dShot:processScreenshot","finished");
+        Log.d("dShot","processScreenshot() finished");
     }
     private void drawFaceAR(Canvas canvas, FaceObj face) { // 畫出臉部AR
         //canvas.drawRect(rect, boxPaint);
@@ -496,7 +496,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         int rootY = (int)pointNoseRoot.y;
         int earWidth = faceWidth*6/5;
         int earHeight = faceHeight;
-        drawEarX = rootX + earWidth/2;
+        drawEarX = rootX - earWidth/2;
         drawEarY = rootY - earHeight*4/3;
         if(isMirror){
             drawEarX = drawingView.getImageWidth() - drawEarX;
@@ -519,7 +519,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         int tipY = (int)pointNoseTip.y;
         int noseWidth = faceWidth;
         int noseHeight = faceHeight/2;
-        drawNoseX = tipX + noseWidth/2 ;
+        drawNoseX = tipX - noseWidth/2;
         //drawNoseY = tipY - noseHeight/2;
         drawNoseY = (int)(face.getFacePoints()[12].y+face.getFacePoints()[14].y)/2 - noseHeight/2; // 鼻尖和鼻底之間
         if(isMirror){
@@ -560,11 +560,32 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         //c.drawBitmap(earBitmap2, drawEarX, drawEarY, trackingPointsPaint);// 耳朵放在額頭 並置中
         //c.drawBitmap(noseBitmap2, drawNoseX, drawNoseY, trackingPointsPaint);// 鼻子放在鼻頭 並置中
         //畫 經過旋轉的 耳朵&鼻子
-        Paint trackingPointsPaint;
-        trackingPointsPaint = new Paint();
-        trackingPointsPaint.setColor(Color.WHITE);
-        drawRotateBitmapByCenter(canvas,trackingPointsPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
-        drawRotateBitmapByCenter(canvas,trackingPointsPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
+        Paint srcOverPaint; // 畫的時候蓋過之前畫的, 但保留覆蓋面積以外的
+        srcOverPaint = new Paint();
+        srcOverPaint.setColor(Color.TRANSPARENT);// 畫筆透明 = 背景透明???
+        srcOverPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));// 設定覆蓋模式
+
+
+        // TEST測試用
+        Bitmap circleBitmap =  BitmapFactory.decodeResource(this.getResources(),R.drawable.redcircle);
+        int circleWidth = 200,circleHeight = 200;
+        circleBitmap = Bitmap.createScaledBitmap(circleBitmap,circleWidth,circleHeight,false);
+        float testX,testY;
+        srcOverPaint.setColor(Color.RED);
+        testX = face.getFacePoints()[11].x*drawingView.getScreenToImageRatio();
+        testY = face.getFacePoints()[11].y*drawingView.getScreenToImageRatio();
+        //canvas.drawCircle(testX,testY,10,paint);//鼻尖
+        testX = (face.getFacePoints()[11].x-circleWidth/2)*drawingView.getScreenToImageRatio();
+        testY = (face.getFacePoints()[11].y-circleHeight/2)*drawingView.getScreenToImageRatio();
+        //canvas.drawBitmap(circleBitmap,testX,testY,srcOverPaint);// 畫圈圈
+        srcOverPaint.setColor(Color.BLACK);
+        testX = face.getFacePoints()[2].x*drawingView.getScreenToImageRatio();// 下巴
+        testY = face.getFacePoints()[2].y*drawingView.getScreenToImageRatio();
+        //canvas.drawCircle(testX,testY,10,paint);//下巴
+        circleBitmap.recycle();
+
+        drawRotateBitmapByCenter(canvas,srcOverPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
+        drawRotateBitmapByCenter(canvas,srcOverPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
         earBitmap.recycle();
         earBitmap2.recycle();
         noseBitmap.recycle();
@@ -616,6 +637,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
             // The callback method gets the result of the request.
         }
     }
+    /*
     @Override
     public void onBitmapGenerated(@NonNull final Bitmap bitmap) { // 處理request後的bitmap
         Log.d("Main/onBitmapGenerated","called");
@@ -625,7 +647,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
                 processScreenshot(bitmap);
             }
         });
-    }
+    }*/
 
 
 }
