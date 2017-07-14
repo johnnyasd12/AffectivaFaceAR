@@ -12,7 +12,6 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v4.app.ActivityCompat;
@@ -282,12 +281,12 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         isRequestScreenshot = true;//drawingView.requestBitmap();
         Bitmap combineBitmap;
         Canvas combineCanvas;
-        ArrayList<FaceObj> faces = new ArrayList<>(listFaces);
+        ArrayList<FaceObj> faces = new ArrayList<>(listFaces);// 取得當前的臉資料
         Bitmap picBitmap = ImageHelper.getBitmapFromFrame(mostRecentFrame);
         combineBitmap = Bitmap.createScaledBitmap(picBitmap
             ,drawingView.getSurfaceWidth(),drawingView.getSurfaceHeight(),true);// 先貼上照片, true => 平滑效果
         combineCanvas = new Canvas(combineBitmap);
-        //combineCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.SRC_OVER); // PorterDuff.Mode.SRC_OVER可能改善黑畫面???
+        combineCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.DST); // 只設定顏色的話預設就為PorterDuff.Mode.SRC_OVER 貌似改善黑畫面
 
 
 //        Bitmap drawViewBitmap;
@@ -348,7 +347,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         String fileSavedMessage = "Screenshot saved to: " + screenshotFile.getPath();
         Toast.makeText(getApplicationContext(), fileSavedMessage, Toast.LENGTH_SHORT).show();
         Log.d(LOG_TAG, fileSavedMessage);
-        Log.d("dShot:","processFinalBitmap finished");
+        Log.d("dShot","processFinalBitmap finished");
 
 
     }
@@ -437,7 +436,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
 
         Bitmap finalScreenshot = Bitmap.createBitmap(faceBitmap.getWidth(), faceBitmap.getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(finalScreenshot); // 畫在canvas上的東西會進finalScreenshot這個Bitmap
-        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);// 調整bitmap大小時 抗鋸齒
 
         canvas.drawBitmap(faceBitmap, 0, 0, paint); // 畫拍好的照片上去 (0,0)是座標
 
@@ -479,7 +478,6 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         Log.d("dShot","processScreenshot() finished");
     }
     private void drawFaceAR(Canvas canvas, FaceObj face) { // 畫出臉部AR
-        //canvas.drawRect(rect, boxPaint);
         boolean isMirror = drawingView.getIsMirror();
         isMirror = false;
         Log.d("drawFaceAR","isMirror = "+isMirror);
@@ -562,8 +560,8 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         //畫 經過旋轉的 耳朵&鼻子
         Paint srcOverPaint; // 畫的時候蓋過之前畫的, 但保留覆蓋面積以外的
         srcOverPaint = new Paint();
-        srcOverPaint.setColor(Color.TRANSPARENT);// 畫筆透明 = 背景透明???
-        srcOverPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));// 設定覆蓋模式
+        //srcOverPaint.setColor(Color.TRANSPARENT);// 畫筆透明 = 背景透明??? seems not, 不該設透明
+        //srcOverPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));// 設定覆蓋模式 好像不應該設定 = =
 
 
         // TEST測試用
@@ -574,22 +572,30 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         srcOverPaint.setColor(Color.RED);
         testX = face.getFacePoints()[11].x*drawingView.getScreenToImageRatio();
         testY = face.getFacePoints()[11].y*drawingView.getScreenToImageRatio();
-        //canvas.drawCircle(testX,testY,10,paint);//鼻尖
+        //canvas.drawCircle(testX,testY,10,srcOverPaint);//鼻尖
         testX = (face.getFacePoints()[11].x-circleWidth/2)*drawingView.getScreenToImageRatio();
         testY = (face.getFacePoints()[11].y-circleHeight/2)*drawingView.getScreenToImageRatio();
         //canvas.drawBitmap(circleBitmap,testX,testY,srcOverPaint);// 畫圈圈
         srcOverPaint.setColor(Color.BLACK);
         testX = face.getFacePoints()[2].x*drawingView.getScreenToImageRatio();// 下巴
         testY = face.getFacePoints()[2].y*drawingView.getScreenToImageRatio();
-        //canvas.drawCircle(testX,testY,10,paint);//下巴
+        //canvas.drawCircle(testX,testY,10,srcOverPaint);//下巴
         circleBitmap.recycle();
 
-        drawRotateBitmapByCenter(canvas,srcOverPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
-        drawRotateBitmapByCenter(canvas,srcOverPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
+        srcOverPaint.setColor(Color.WHITE); // 好像不該設成透明
+        //Paint paint2 = new Paint();
+        //paint2.setColor(Color.WHITE);
+        //paint2.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));
+        // 預設是用srcOverPaint
+        drawRotateBitmapByCenter(canvas,srcOverPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY); // 畫耳朵 drawEarX,drawEarY
+        Log.d("dshot","drawEarX = "+drawEarX+", drawEarY = "+drawEarY+", drawRotateBitmap");
+        drawRotateBitmapByCenter(canvas,srcOverPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY); // 畫鼻子 drawNoseX,drawNoseY
+        Log.d("dshot","drawNoseX = "+drawNoseX+", drawNoseY = "+drawNoseY+", drawRotateBitmap");
         earBitmap.recycle();
         earBitmap2.recycle();
         noseBitmap.recycle();
         noseBitmap2.recycle();
+        System.gc();// 系統自動回收記憶體?
     }
     private void drawRotateBitmapByCenter(Canvas canvas, Paint paint, Bitmap bitmap,
                                           float rotation, float posX, float posY, float centerX, float centerY) {// 旋轉bitmap本身
