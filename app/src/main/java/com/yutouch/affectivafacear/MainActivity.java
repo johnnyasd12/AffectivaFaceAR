@@ -279,10 +279,11 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         }
 
         isRequestScreenshot = true;//drawingView.requestBitmap();
+        Frame mFrame = mostRecentFrame; // 取得當前的照片
+        ArrayList<FaceObj> faces = new ArrayList<>(listFaces);// 取得當前的臉資料
         Bitmap combineBitmap;
         Canvas combineCanvas;
-        ArrayList<FaceObj> faces = new ArrayList<>(listFaces);// 取得當前的臉資料
-        Bitmap picBitmap = ImageHelper.getBitmapFromFrame(mostRecentFrame);
+        Bitmap picBitmap = ImageHelper.getBitmapFromFrame(mFrame);
         combineBitmap = Bitmap.createScaledBitmap(picBitmap
             ,drawingView.getSurfaceWidth(),drawingView.getSurfaceHeight(),true);// 先貼上照片, true => 平滑效果
         combineCanvas = new Canvas(combineBitmap);
