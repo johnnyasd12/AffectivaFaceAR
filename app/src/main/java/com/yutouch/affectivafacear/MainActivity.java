@@ -12,6 +12,7 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Environment;
@@ -216,14 +217,16 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         if(isRequestScreenshot){ // 如果按下了拍照紐
             isRequestScreenshot=false;
             Bitmap drawViewBitmap;
-            Canvas screenshotCanvas;
+            Canvas drawViewCanvas;
             drawViewBitmap = Bitmap.createBitmap(drawingView.getSurfaceWidth(), drawingView.getSurfaceHeight(), Bitmap.Config.ARGB_8888);
-            screenshotCanvas = new Canvas(drawViewBitmap);
-            screenshotCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            drawViewBitmap.setHasAlpha(true); // test黑畫面, 好像沒用
+            drawViewBitmap = eraseBG(drawViewBitmap, -16777216);  // test黑畫面
+            drawViewCanvas = new Canvas(drawViewBitmap);
+            drawViewCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);// test黑畫面, 有畫AR時貌似底為此顏色 MODE設啥好像沒差
             // 畫 臉部AR
             if(faces.size()>0) { // 若有偵測到臉
                 for (FaceObj eachFace : faces) {
-                    drawFaceAR(screenshotCanvas, eachFace);
+                    drawFaceAR(drawViewCanvas, eachFace);
                 }
                 processScreenshot(drawViewBitmap);
             }else { // 沒偵測到臉就只拍照片
@@ -319,15 +322,20 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         }else{Log.d("Main/processScreenshot","mostRecentFrame get");}
 
         Bitmap finalScreenshot = Bitmap.createBitmap(faceBitmap.getWidth(), faceBitmap.getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(finalScreenshot); // 畫在canvas上的東西會進finalScreenshot這個Bitmap
+        finalScreenshot.setHasAlpha(true); //test黑畫面, useless
+        finalScreenshot = eraseBG(finalScreenshot,-16777216);// test黑畫面, 貌似成功
+        Canvas finalCanvas = new Canvas(finalScreenshot); // 畫在canvas上的東西會進finalScreenshot這個Bitmap
+        finalCanvas.drawColor(Color.BLUE);// test黑畫面, 顏色似乎無意義, 因為馬上會被照片蓋過去
         Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        paint.setColor(Color.RED);// test黑畫面, 似乎not from here
+        paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));// test黑畫面
 
-        canvas.drawBitmap(faceBitmap, 0, 0, paint); // 畫拍好的照片上去 (0,0)是座標
+        finalCanvas.drawBitmap(faceBitmap, 0, 0, paint); // 畫拍好的照片上去 (0,0)是座標
 
         // 應該是在調整作畫比例
         float scaleFactor = ((float) faceBitmap.getWidth()) / ((float) drawingViewBitmap.getWidth());
         int scaledHeight = Math.round(drawingViewBitmap.getHeight() * scaleFactor);
-        canvas.drawBitmap(drawingViewBitmap, null, new Rect(0, 0, faceBitmap.getWidth(), scaledHeight), paint); // 畫AR上去
+        finalCanvas.drawBitmap(drawingViewBitmap, null, new Rect(0, 0, faceBitmap.getWidth(), scaledHeight),paint); // 畫AR上去
 
         drawingViewBitmap.recycle();
 
@@ -428,7 +436,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
     private void drawFaceAR(Canvas canvas, FaceObj face) { // 畫出臉部AR
         //canvas.drawRect(rect, boxPaint);
         boolean isMirror = drawingView.getIsMirror();
-        //isMirror = false;
+        isMirror = false;
         Log.d("drawFaceAR","isMirror = "+isMirror);
         PointF[] facePoints = face.getFacePoints();
         int drawEarX,drawEarY,drawNoseX,drawNoseY;
@@ -443,7 +451,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         int rootY = (int)pointNoseRoot.y;
         int earWidth = faceWidth*6/5;
         int earHeight = faceHeight;
-        drawEarX = rootX + earWidth/2;
+        drawEarX = rootX - earWidth/2;
         drawEarY = rootY - earHeight*4/3;
         if(isMirror){
             drawEarX = drawingView.getImageWidth() - drawEarX;
@@ -457,7 +465,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
 //            Log.d("Draw/faceHeight",faceHeight+"");
         earWidth *= drawingView.getScreenToImageRatio();
         earHeight *= drawingView.getScreenToImageRatio();
-        Bitmap earBitmap = BitmapFactory.decodeResource(this.getResources(),R.drawable.rbear);
+        Bitmap earBitmap = BitmapFactory.decodeResource(this.getResources(),R.drawable.rbear); earBitmap.setHasAlpha(true); // test黑畫面, 0作用
         Bitmap earBitmap2 = Bitmap.createScaledBitmap(earBitmap, earWidth, earHeight, false);
 
         // 12:nose tip 鼻尖, 14: nose bottom boundary 鼻底
@@ -466,7 +474,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         int tipY = (int)pointNoseTip.y;
         int noseWidth = faceWidth;
         int noseHeight = faceHeight/2;
-        drawNoseX = tipX + noseWidth/2 ;
+        drawNoseX = tipX - noseWidth/2 ;
         //drawNoseY = tipY - noseHeight/2;
         drawNoseY = (int)(face.getFacePoints()[12].y+face.getFacePoints()[14].y)/2 - noseHeight/2; // 鼻尖和鼻底之間
         if(isMirror){
@@ -477,7 +485,7 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         drawNoseY *= drawingView.getScreenToImageRatio();
         noseWidth *= drawingView.getScreenToImageRatio();
         noseHeight *= drawingView.getScreenToImageRatio();
-        Bitmap noseBitmap = BitmapFactory.decodeResource(this.getResources(),R.drawable.rbnose);
+        Bitmap noseBitmap = BitmapFactory.decodeResource(this.getResources(),R.drawable.rbnose);noseBitmap.setHasAlpha(true); // test黑畫面, 0作用
         Bitmap noseBitmap2 = Bitmap.createScaledBitmap(noseBitmap, noseWidth, noseHeight, false);
         //image(鏡像) x向左遞增, y向下遞增, 原點在右上
         // 計算傾斜角度
@@ -507,11 +515,14 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         //c.drawBitmap(earBitmap2, drawEarX, drawEarY, trackingPointsPaint);// 耳朵放在額頭 並置中
         //c.drawBitmap(noseBitmap2, drawNoseX, drawNoseY, trackingPointsPaint);// 鼻子放在鼻頭 並置中
         //畫 經過旋轉的 耳朵&鼻子
-        Paint trackingPointsPaint;
-        trackingPointsPaint = new Paint();
-        trackingPointsPaint.setColor(Color.WHITE);
-        drawRotateBitmapByCenter(canvas,trackingPointsPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
-        drawRotateBitmapByCenter(canvas,trackingPointsPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
+        Paint bitmapPaint;
+        bitmapPaint = new Paint();
+        bitmapPaint.setColor(Color.WHITE);
+        bitmapPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_OVER));// test黑畫面, seems useless
+        earBitmap2.setHasAlpha(true); // test黑畫面
+        noseBitmap2.setHasAlpha(true); // test黑畫面
+        drawRotateBitmapByCenter(canvas,bitmapPaint,earBitmap2,angle,drawEarX,drawEarY,noseX,noseY);
+        drawRotateBitmapByCenter(canvas,bitmapPaint,noseBitmap2,angle,drawNoseX,drawNoseY,noseX,noseY);
         earBitmap.recycle();
         earBitmap2.recycle();
         noseBitmap.recycle();
@@ -551,6 +562,25 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
             Log.d("Main/checkForStoragePer","Available, takeScreenshot()...");
             takeScreenshot(screenshotButton);
         }
+    }
+    private static Bitmap eraseBG(Bitmap src, int color) {// bitmap預處理時, 把黑色background轉成透明?
+        int width = src.getWidth();
+        int height = src.getHeight();
+        Bitmap b = src.copy(Bitmap.Config.ARGB_8888, true);
+        b.setHasAlpha(true);
+
+        int[] pixels = new int[width * height];
+        src.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        for (int i = 0; i < width * height; i++) {
+            if (pixels[i] == color) {
+                pixels[i] = 0;
+            }
+        }
+
+        b.setPixels(pixels, 0, width, 0, 0, width, height);
+
+        return b;
     }
     private void requestStoragePermissions() {
         if (!storagePermissionsAvailable) {
