@@ -281,6 +281,8 @@ public class MainActivity extends Activity implements Detector.ImageListener, Ca
         isRequestScreenshot = true;//drawingView.requestBitmap();
         Frame mFrame = mostRecentFrame; // 取得當前的照片
         ArrayList<FaceObj> faces = new ArrayList<>(listFaces);// 取得當前的臉資料
+        isSDKStarted = false;
+        stopDetector();// 為了讓系統更好畫圖 先暫停掉
         Bitmap combineBitmap;
         Canvas combineCanvas;
         Bitmap picBitmap = ImageHelper.getBitmapFromFrame(mFrame);
